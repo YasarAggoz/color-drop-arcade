@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Color Drop Arcade - YouTube Playables</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.youtube.com/game_api/v1"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800;900&display=swap');
+    
+    * {
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      font-family: 'Outfit', sans-serif;
+    }
+
+    body {
+      background-color: #030712;
+      color: #ffffff;
+      overflow: hidden;
+    }
+
+    .neon-glow { box-shadow: 0 0 25px rgba(99, 102, 241, 0.45); }
+    
+    .btn-glow { transition: transform 0.1s ease, filter 0.1s ease; }
+    .btn-glow:active { transform: scale(0.92); filter: brightness(1.3); }
+
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.94);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    @keyframes shakeAnimation {
+      0% { transform: translate(0, 0); }
+      20% { transform: translate(-8px, 4px); }
+      40% { transform: translate(8px, -4px); }
+      60% { transform: translate(-6px, -2px); }
+      80% { transform: translate(6px, 2px); }
+      100% { transform: translate(0, 0); }
+    }
+    .animate-shake { animation: shakeAnimation 0.25s cubic-bezier(.36,.07,.19,.97) both; }
+
+    @keyframes levelUpPopup {
+      0% { transform: scale(0.5) rotate(-5deg); opacity: 0; }
+      25% { transform: scale(1.05) rotate(2deg); opacity: 1; }
+      70% { transform: scale(1.0) rotate(0deg); opacity: 0.9; }
+      100% { transform: scale(1.05) translateY(-20px); opacity: 0; }
+    }
+    .level-up-banner { animation: levelUpPopup 1s forwards cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+
+    .lang-btn {
+      padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 800;
+      background: rgba(30, 41, 59, 0.9); color: #94a3b8;
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      cursor: pointer; transition: all 0.15s ease; pointer-events: auto;
+    }
+    .lang-btn:hover { color: #e2e8f0; }
+    .lang-btn.active {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: #ffffff; border-color: #a78bfa;
+      box-shadow: 0 0 12px rgba(139, 92, 246, 0.5);
+    }
+    .lang-switch { display: flex; gap: 4px; z-index: 60; }
+
+    @keyframes endlessPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.7; transform: scale(1.1); }
+    }
+    #endless-badge { animation: endlessPulse 1.5s ease-in-out infinite; }
+
+    @keyframes recordSlideDown {
+      0% { transform: translateY(-120%) scale(0.8); opacity: 0; }
+      15% { transform: translateY(0) scale(1.05); opacity: 1; }
+      25% { transform: translateY(0) scale(1); opacity: 1; }
+      75% { transform: translateY(0) scale(1); opacity: 1; }
+      100% { transform: translateY(-120%) scale(0.9); opacity: 0; }
+    }
+    .record-toast { animation: recordSlideDown 3s forwards cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+
+    @keyframes recordShine {
+      0%, 100% { box-shadow: 0 0 20px rgba(251, 191, 36, 0.6), inset 0 0 12px rgba(251, 191, 36, 0.2); }
+      50% { box-shadow: 0 0 40px rgba(251, 191, 36, 1), inset 0 0 20px rgba(251, 191, 36, 0.4); }
+    }
+    .record-shine { animation: recordShine 1s ease-in-out infinite; }
+
+    /* 🛑 Game over sırasında kontrolleri tamamen devre dışı bırak */
+    .controls-disabled {
+      pointer-events: none !important;
+      opacity: 0.35;
+      filter: grayscale(0.6);
+    }
+  </style>
+</head>
+<body class="flex items-center justify-center min-h-screen w-screen p-0 m-0 bg-slate-950">
+
+  <div id="game-container" class="relative w-full h-full max-w-md max-h-[920px] aspect-[9/16] flex flex-col justify-between overflow-hidden bg-slate-900 shadow-2xl rounded-none md:rounded-3xl border border-slate-800/80">
+    
+    <div class="lang-switch absolute top-3 right-3 z-[60]">
+      <button id="btn-tr" class="lang-btn active" onclick="setLanguage('tr')">TR</button>
+      <button id="btn-en" class="lang-btn" onclick="setLanguage('en')">EN</button>
+    </div>
+
+    <div class="absolute top-0 left-0 right-0 z-10 flex items-center justify-between p-4 bg-gradient-to-b from-slate-950/90 via-slate-950/50 to-transparent pointer-events-none">
+      <div class="flex flex-col">
+        <span data-i18n="score" class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">SKOR</span>
+        <span id="score-text" class="text-3xl font-black text-indigo-400 tracking-tight leading-none">0</span>
+      </div>
+      <div class="flex flex-col items-center">
+        <span data-i18n="level" class="text-[10px] uppercase tracking-widest text-slate-400 font-bold">SEVİYE</span>
+        <div id="level-badge" class="px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/40 flex items-center gap-1.5 shadow-lg relative">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="level-text" class="text-xl font-black text-emerald-300 tracking-wider">1.1</span>
+          <span id="endless-badge" class="hidden absolute -top-2 -right-2 text-[10px] px-1.5 py-0.5 rounded-full bg-rose-500 border border-rose-300 text-white font-black shadow-lg">∞</span>
+        </div>
+      </div>
+      <div class="flex flex-col items-end pr-20">
+        <div id="lives-container" class="flex gap-1 mb-1">
+          <span class="text-rose-500 text-sm">❤️</span><span class="text-rose-500 text-sm">❤️</span><span class="text-rose-500 text-sm">❤️</span>
+        </div>
+        <span id="player-display-name" class="text-[11px] font-bold text-slate-300 max-w-[90px] truncate leading-none">Oyuncu</span>
+      </div>
+    </div>
+
+    <canvas id="gameCanvas" class="w-full h-full block cursor-pointer"></canvas>
+
+    <div id="record-toast" class="absolute top-20 left-1/2 -translate-x-1/2 z-[55] pointer-events-none hidden">
+      <div id="record-toast-inner" class="record-shine flex items-center gap-3 px-5 py-3 rounded-2xl bg-gradient-to-r from-amber-500/95 via-yellow-400/95 to-amber-500/95 border-2 border-amber-200 shadow-2xl backdrop-blur-sm">
+        <span id="record-toast-icon" class="text-3xl">🏆</span>
+        <div class="flex flex-col">
+          <span id="record-toast-title" class="text-sm font-black text-amber-950 leading-tight">YENİ REKOR!</span>
+          <span id="record-toast-subtitle" class="text-[11px] font-bold text-amber-900/80 leading-tight">Tüm zamanların en yükseği!</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="level-up-overlay" class="absolute inset-0 z-20 pointer-events-none flex items-center justify-center hidden">
+      <div class="level-up-banner text-center px-6 py-4 rounded-3xl bg-indigo-600/40 border-2 border-indigo-300/60 shadow-2xl backdrop-blur-sm">
+        <span class="block text-xs uppercase tracking-widest text-amber-200 font-black mb-0.5 drop-shadow-md">TEBRİKLER!</span>
+        <span id="level-up-title" class="block text-4xl font-black text-white drop-shadow-lg">SEVİYE 1.2</span>
+        <span id="level-up-subtitle" class="block text-xs font-semibold text-indigo-50 mt-1 drop-shadow-md">Hız Arttı!</span>
+      </div>
+    </div>
+
+    <div id="controls-panel" class="absolute bottom-0 left-0 right-0 p-3 z-10 flex justify-center items-center gap-2 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent pb-6"></div>
+
+    <div id="start-screen" class="absolute inset-0 z-30 flex flex-col items-center justify-between p-6 glass-panel text-center overflow-y-auto">
+      <div class="my-auto flex flex-col items-center w-full pt-6">
+        <div class="w-16 h-16 mb-3 rounded-2xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg neon-glow animate-pulse">
+          <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+          </svg>
+        </div>
+        <h1 data-i18n="title" class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-300 to-pink-400 tracking-tight mb-1">RENKLİ TOP DÜŞÜRME</h1>
+        <p data-i18n="subtitle" class="text-slate-300 text-xs max-w-xs mb-3 font-medium">Düşen topları doğru renkteki butonlara basarak yok et!</p>
+
+        <div class="w-full max-w-xs mb-3">
+          <label class="block text-[11px] text-slate-400 font-bold uppercase tracking-wider text-left mb-1">Oyuncu Adı</label>
+          <input type="text" id="username-input" maxlength="15" placeholder="İsminizi girin..." class="w-full py-2 px-3 rounded-xl bg-slate-800/90 border border-slate-700 text-sm text-amber-300 font-bold focus:outline-none focus:border-indigo-500 transition-colors">
+        </div>
+        
+        <div class="bg-slate-800/80 p-3 rounded-2xl border border-slate-700/60 mb-3 text-[11px] text-slate-300 space-y-1.5 text-left w-full max-w-xs">
+          <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-indigo-400"></span><span><strong>Dengeli Hız:</strong> Yavaş başlar, alt seviyelerde birer tık hızlanır</span></div>
+          <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-400"></span><span><strong>Yeni Renk = Rahatlama:</strong> Yeni renk eklendiğinde hız başa döner!</span></div>
+          <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400"></span><span><strong>Ek Can:</strong> Reklam izleyerek +1 Can kazanabilirsin</span></div>
+          <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-rose-400"></span><span><strong>Sonsuz Mod:</strong> 4.3'ten sonra hız sabitlenir, ∞ başlar!</span></div>
+        </div>
+
+        <button id="open-leaderboard-btn" data-i18n="leaderboardBtn" class="w-full max-w-xs py-2 px-4 mb-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-indigo-300 text-xs font-bold flex items-center justify-center gap-2 transition-all">🏆 SKOR TABLOSU</button>
+      </div>
+      <button id="start-btn" data-i18n="startBtn" class="w-full max-w-xs py-3.5 px-6 rounded-2xl font-black text-base text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 active:scale-95 transition-all shadow-xl neon-glow">OYUNA BAŞLA</button>
+    </div>
+
+    <div id="gameover-screen" class="absolute inset-0 z-30 hidden flex flex-col items-center justify-between p-6 glass-panel text-center overflow-y-auto">
+      <div class="my-auto flex flex-col items-center w-full">
+        <span class="text-xs uppercase tracking-widest text-rose-400 font-black mb-1">OYUN BİTTİ</span>
+        <h2 data-i18n="gameOver" class="text-3xl font-black text-white mb-4">HAKLARIN TÜKENDİ!</h2>
+
+        <div class="w-full max-w-xs bg-slate-800/90 rounded-2xl p-4 border border-slate-700/80 mb-4 space-y-2.5 shadow-xl">
+          <div class="flex justify-between items-center"><span class="text-slate-400 text-xs font-semibold">Toplam Skor</span><span id="final-score" class="text-2xl font-black text-indigo-400">0</span></div>
+          <div class="h-px bg-slate-700/80 w-full"></div>
+          <div class="flex justify-between items-center"><span class="text-slate-400 text-xs font-semibold">Ulaşılan Seviye</span><span id="final-level" class="text-lg font-bold text-emerald-400">1.1</span></div>
+          <div class="h-px bg-slate-700/80 w-full"></div>
+          <div class="flex justify-between items-center"><span class="text-slate-400 text-xs font-semibold">En Yüksek Skor</span><span id="best-score" class="text-lg font-bold text-amber-400">0</span></div>
+        </div>
+
+        <div class="w-full max-w-xs mb-3">
+          <button id="watch-ad-btn" class="w-full py-3 px-4 rounded-xl font-bold text-xs text-amber-900 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 hover:brightness-110 active:scale-95 transition-all shadow-lg flex items-center justify-center gap-2 border border-amber-200">
+            <span class="text-base">📺</span>
+            <span id="ad-btn-text" data-i18n="adBtn">REKLAM İZLE (+1 CAN & STAGE BAŞTAN)</span>
+          </button>
+          <span id="ad-used-notice" class="hidden text-[10px] text-slate-400 font-semibold mt-1">Bu oyunda reklam hakkını kullandın.</span>
+        </div>
+      </div>
+      <div class="w-full max-w-xs space-y-2">
+        <button id="gameover-leaderboard-btn" data-i18n="leaderboardBtn" class="w-full py-2 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-indigo-300 text-xs font-bold transition-all">🏆 SKOR TABLOSU</button>
+        <button id="restart-btn" data-i18n="restartBtn" class="w-full py-3.5 px-6 rounded-2xl font-black text-base text-white bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:scale-95 transition-all shadow-xl">YENİDEN BAŞLA</button>
+      </div>
+    </div>
+
+    <div id="leaderboard-modal" class="absolute inset-0 z-40 hidden flex flex-col items-center justify-between p-6 glass-panel text-center">
+      <div class="w-full max-w-xs flex justify-between items-center mb-3">
+        <h3 class="text-lg font-black text-amber-400 flex items-center gap-2"><span>🏆</span> <span data-i18n="leaderboardBtn">SKOR TABLOSU</span></h3>
+        <button id="close-leaderboard-btn" class="text-slate-400 hover:text-white text-xl font-bold p-1">✕</button>
+      </div>
+      <div class="w-full max-w-xs bg-slate-900/90 rounded-2xl border border-slate-800 p-3 mb-4 flex-1 overflow-y-auto"><div id="leaderboard-list" class="space-y-2"></div></div>
+      <button id="close-leaderboard-bottom-btn" data-i18n="closeBtn" class="w-full max-w-xs py-3 px-6 rounded-xl font-bold text-xs text-white bg-slate-800 hover:bg-slate-700 transition-all">KAPAT</button>
+    </div>
+
+    <div id="ad-overlay" class="absolute inset-0 z-50 hidden flex flex-col items-center justify-between p-6 bg-slate-950/95 text-center">
+      <div class="w-full flex justify-between items-center text-xs text-slate-400 font-bold">
+        <span data-i18n="adTitle">SPONSORLU REKLAM</span>
+        <span id="ad-timer" class="px-2 py-0.5 rounded bg-slate-800 text-amber-400">5s</span>
+      </div>
+      <div class="my-auto flex flex-col items-center justify-center p-6 rounded-3xl bg-gradient-to-br from-indigo-900/40 via-purple-900/40 to-slate-900 border border-indigo-500/30 w-full max-w-xs">
+        <div class="w-16 h-16 rounded-full bg-indigo-500/20 flex items-center justify-center text-3xl mb-3 animate-bounce">🎮</div>
+        <h4 class="text-xl font-black text-white mb-1">YouTube Playables</h4>
+        <p data-i18n="adMessage" class="text-xs text-slate-300 font-medium mb-4">Oyun devam ediyor, lütfen bekleyin...</p>
+        <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden"><div id="ad-progress" class="bg-gradient-to-r from-amber-400 to-indigo-500 h-full w-0 transition-all duration-100"></div></div>
+      </div>
+      <button id="ad-complete-btn" class="w-full max-w-xs py-3 px-6 rounded-xl font-black text-xs text-slate-400 bg-slate-800 opacity-60 cursor-not-allowed" disabled>REKLAM BEKLENİYOR...</button>
+    </div>
+
+  </div>
+
+  <script>
+    /* =========================================================
+       🌍 DİL
+       ========================================================= */
+    let currentLang = 'tr';
+    let dataLoaded = false;
+
+    const ytgame = (typeof yt !== 'undefined' && yt.playables) ? yt.playables : null;
+
+    const TRANSLATIONS = {
+      tr: {
+        title: "RENKLİ TOP DÜŞÜRME", subtitle: "Düşen topları doğru renkteki butonlara basarak yok et!",
+        startBtn: "OYUNA BAŞLA", score: "SKOR", level: "SEVİYE", lives: "CAN",
+        gameOver: "OYUN BİTTİ", finalScore: "Aptal Toplar Sizi Yendi! Skorunuz:",
+        adBtn: "📺 REKLAM İZLE (+1 CAN & STAGE BAŞTAN)", restartBtn: "YENİDEN BAŞLA",
+        leaderboardBtn: "🏆 SKOR TABLOSU", closeBtn: "KAPAT",
+        adTitle: "Sponsorlu Reklam", adMessage: "Oyun devam ediyor, lütfen bekleyin...",
+        adReward: "+1 Can Kazandınız! Stage baştan başlıyor...", levelUp: "SEVİYE TAMAMLANDI!",
+        recordAllTime: "EN YÜKSEK SKOR!", recordAllTimeSub: "Tüm zamanların rekorunu kırdın!",
+        recordPersonal: "KENDİ REKORUN!", recordPersonalSub: "Kişisel en iyi skorunu geçtin!"
+      },
+      en: {
+        title: "COLOR DROP ARCADE", subtitle: "Destroy falling balls by pressing the matching color buttons!",
+        startBtn: "START GAME", score: "SCORE", level: "LEVEL", lives: "LIVES",
+        gameOver: "GAME OVER", finalScore: "Final Score:",
+        adBtn: "📺 WATCH AD (+1 LIFE & RESET STAGE)", restartBtn: "PLAY AGAIN",
+        leaderboardBtn: "🏆 LEADERBOARD", closeBtn: "CLOSE",
+        adTitle: "Sponsored Ad", adMessage: "Game will resume shortly, please wait...",
+        adReward: "+1 Extra Life Awarded! Stage restarting...", levelUp: "LEVEL COMPLETED!",
+        recordAllTime: "ALL-TIME HIGH!", recordAllTimeSub: "You beat the global record!",
+        recordPersonal: "PERSONAL BEST!", recordPersonalSub: "You beat your own record!"
+      }
+    };
+
+    function setLanguage(lang) {
+      if (!TRANSLATIONS[lang]) lang = 'tr';
+      currentLang = lang;
+      try { localStorage.setItem('color_drop_lang', lang); } catch (e) {}
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (TRANSLATIONS[lang] && TRANSLATIONS[lang][key]) el.textContent = TRANSLATIONS[lang][key];
+      });
+      const btnTr = document.getElementById('btn-tr');
+      const btnEn = document.getElementById('btn-en');
+      if (btnTr) btnTr.classList.toggle('active', lang === 'tr');
+      if (btnEn) btnEn.classList.toggle('active', lang === 'en');
+      document.documentElement.lang = lang;
+    }
+
+    function t(key) {
+      return (TRANSLATIONS[currentLang] && TRANSLATIONS[currentLang][key]) || key;
+    }
+
+    /* =========================================================
+       🔊 SOUND FX
+       ========================================================= */
+    class SoundFx {
+      constructor() { this.ctx = null; }
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) this.ctx = new AudioContext();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+      }
+      playPop() { if (!this.ctx) return; try { const o = this.ctx.createOscillator(), g = this.ctx.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(440, this.ctx.currentTime); o.frequency.exponentialRampToValueAtTime(880, this.ctx.currentTime + 0.08); g.gain.setValueAtTime(0.3, this.ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.08); o.connect(g); g.connect(this.ctx.destination); o.start(); o.stop(this.ctx.currentTime + 0.08); } catch (e) {} }
+      playError() { if (!this.ctx) return; try { const o = this.ctx.createOscillator(), g = this.ctx.createGain(); o.type = 'sawtooth'; o.frequency.setValueAtTime(160, this.ctx.currentTime); o.frequency.linearRampToValueAtTime(80, this.ctx.currentTime + 0.2); g.gain.setValueAtTime(0.3, this.ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.2); o.connect(g); g.connect(this.ctx.destination); o.start(); o.stop(this.ctx.currentTime + 0.2); } catch (e) {} }
+      playLevelUp() { if (!this.ctx) return; try { [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => { const o = this.ctx.createOscillator(), g = this.ctx.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(f, this.ctx.currentTime + i * 0.08); g.gain.setValueAtTime(0.25, this.ctx.currentTime + i * 0.08); g.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + i * 0.08 + 0.15); o.connect(g); g.connect(this.ctx.destination); o.start(this.ctx.currentTime + i * 0.08); o.stop(this.ctx.currentTime + i * 0.08 + 0.15); }); } catch (e) {} }
+      playGameOver() { if (!this.ctx) return; try { [400, 350, 300, 220].forEach((f, i) => { const o = this.ctx.createOscillator(), g = this.ctx.createGain(); o.type = 'sawtooth'; o.frequency.setValueAtTime(f, this.ctx.currentTime + i * 0.12); g.gain.setValueAtTime(0.25, this.ctx.currentTime + i * 0.12); g.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + i * 0.12 + 0.2); o.connect(g); g.connect(this.ctx.destination); o.start(this.ctx.currentTime + i * 0.12); o.stop(this.ctx.currentTime + i * 0.12 + 0.2); }); } catch (e) {} }
+      playReward() { if (!this.ctx) return; try { [330, 440, 554.37, 659.25].forEach((f, i) => { const o = this.ctx.createOscillator(), g = this.ctx.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(f, this.ctx.currentTime + i * 0.07); g.gain.setValueAtTime(0.3, this.ctx.currentTime + i * 0.07); g.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + i * 0.07 + 0.18); o.connect(g); g.connect(this.ctx.destination); o.start(this.ctx.currentTime + i * 0.07); o.stop(this.ctx.currentTime + i * 0.07 + 0.18); }); } catch (e) {} }
+      playRecord() { if (!this.ctx) return; try { [659.25, 783.99, 987.77, 1318.51].forEach((f, i) => { const o = this.ctx.createOscillator(), g = this.ctx.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(f, this.ctx.currentTime + i * 0.06); g.gain.setValueAtTime(0.28, this.ctx.currentTime + i * 0.06); g.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + i * 0.06 + 0.2); o.connect(g); g.connect(this.ctx.destination); o.start(this.ctx.currentTime + i * 0.06); o.stop(this.ctx.currentTime + i * 0.06 + 0.2); }); } catch (e) {} }
+    }
+    const sfx = new SoundFx();
+
+    /* =========================================================
+       🎨 RENKLER
+       ========================================================= */
+    const ALL_COLORS = [
+      { id: 'red', name: 'KIRMIZI', hex: '#ef4444', glow: 'rgba(239, 68, 68, 0.7)', key: '1' },
+      { id: 'blue', name: 'MAVİ', hex: '#3b82f6', glow: 'rgba(59, 130, 246, 0.7)', key: '2' },
+      { id: 'green', name: 'YEŞİL', hex: '#10b981', glow: 'rgba(16, 185, 129, 0.7)', key: '3' },
+      { id: 'yellow', name: 'SARI', hex: '#f59e0b', glow: 'rgba(245, 158, 11, 0.7)', key: '4' }
+    ];
+
+    /* =========================================================
+       ⚡ HIZ & SEVİYE
+       ========================================================= */
+    function getTargetBallsForStage(main, sub) {
+      if (main === 1 && sub === 1) return 20;
+      return 30;
+    }
+
+    function updateSpeedAndColorRules() {
+      const mLvl = mainLevel, sLvl = subLevel;
+      let activeColorCount = (mLvl === 1) ? 2 : (mLvl === 2) ? 3 : 4;
+      const isEndlessMode = (mLvl > 4) || (mLvl === 4 && sLvl >= 3);
+      let speedMultiplier, spawnInterval;
+      if (isEndlessMode) {
+        const baseSpeed = 0.28, subSpeedBonusMax = 2 * 0.10, mainBonusMax = 3 * 0.03;
+        speedMultiplier = baseSpeed + subSpeedBonusMax + mainBonusMax;
+        spawnInterval = Math.max(40, 130 - (subSpeedBonusMax * 80));
+      } else {
+        const baseSpeed = 0.28, subSpeedBonus = (sLvl - 1) * 0.10, mainBonus = (mLvl - 1) * 0.03;
+        speedMultiplier = baseSpeed + subSpeedBonus + mainBonus;
+        spawnInterval = Math.max(40, 130 - (subSpeedBonus * 80));
+      }
+      currentConfig = {
+        colorCount: activeColorCount, speedMultiplier: speedMultiplier,
+        spawnRateFrames: Math.round(spawnInterval),
+        targetPops: getTargetBallsForStage(mLvl, sLvl), isEndless: isEndlessMode
+      };
+      renderColorButtons();
+      const badge = document.getElementById('endless-badge');
+      if (badge) badge.classList.toggle('hidden', !isEndlessMode);
+    }
+
+    /* =========================================================
+       🎨 RENK BUTONLARI — 🛑 FARE TIKLAMA SORUNU ÇÖZÜLDÜ
+       ========================================================= */
+    function renderColorButtons() {
+      if (!controlsPanel || !currentConfig) return;
+      activeColors = ALL_COLORS.slice(0, currentConfig.colorCount);
+      controlsPanel.innerHTML = '';
+      
+      // 🛑 Global buton kilidi — aynı frame'de çift tetiklemeyi engeller
+      let buttonLock = false;
+
+      activeColors.forEach((colorObj) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `btn-glow flex-1 h-14 py-1.5 rounded-2xl flex flex-col items-center justify-center font-extrabold text-white text-sm shadow-lg border border-white/20`;
+        btn.style.backgroundColor = colorObj.hex;
+        btn.style.boxShadow = `0 4px 16px ${colorObj.glow}`;
+        
+        btn.innerHTML = `
+          <span>${colorObj.name}</span>
+          <span class="text-[9px] opacity-75 font-mono leading-none">[${colorObj.key}]</span>
+        `;
+
+        // 🛑 ANA TETİKLEYİCİ — Tüm korumalar burada
+        const trigger = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+          
+          // 🛑 Focus'u anında kaldır (fare tıklaması sonrası focus kalmasın)
+          if (document.activeElement && document.activeElement.blur) {
+            document.activeElement.blur();
+          }
+          
+          // 🛑 Game over veya başka bir state'teyse işlem yapma
+          if (gameState !== 'PLAYING') return;
+          
+          // 🛑 Çift tetikleme koruması
+          if (buttonLock) return;
+          buttonLock = true;
+          setTimeout(() => { buttonLock = false; }, 120);
+          
+          processColorMatch(colorObj.id);
+        };
+
+        // 🛑 Sadece pointerdown kullan
+        btn.addEventListener('pointerdown', trigger);
+        
+        // 🛑 Fare tıklamasında focus'u tamamen engelle (asıl fix!)
+        btn.addEventListener('focus', (e) => { 
+          if (e.target && e.target.blur) e.target.blur(); 
+        });
+        btn.addEventListener('mousedown', (e) => {
+          e.preventDefault(); // Focus almayı engelle
+        });
+        
+        // 🛑 Click eventi zaten pointerdown ile işlendiği için engelle
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+        });
+        
+        // 🛑 Uzun basma / sağ tıklama engelle
+        btn.addEventListener('contextmenu', (e) => e.preventDefault());
+        btn.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+        btn.addEventListener('touchend', (e) => e.preventDefault());
+        
+        controlsPanel.appendChild(btn);
+      });
+    }
+
+    /* =========================================================
+       STATE
+       ========================================================= */
+    let canvas, ctx;
+    let gameState = 'START';
+    let mainLevel = 1, subLevel = 1;
+    let currentConfig = null, levelPopsCount = 0;
+    let score = 0, highScore = 0, playerBestScore = 0;
+    let lives = 3, adUsedThisSession = false;
+    let playerName = 'Oyuncu';
+    let allTimeRecordShown = false, personalRecordShown = false;
+    let activeColors = [], balls = [], particles = [], confetti = [];
+    let spawnTimer = 0, dangerLineY = 0, animationFrameId = null, firstFrameSent = false;
+    const ballCache = {};
+    let logicalWidth = 0, logicalHeight = 0, leaderboardData = [];
+
+    /* =========================================================
+       DOM
+       ========================================================= */
+    let gameContainer, startScreen, gameOverScreen, leaderboardModal, adOverlay;
+    let startBtn, restartBtn, openLeaderboardBtn, gameOverLeaderboardBtn;
+    let closeLeaderboardBtn, closeLeaderboardBottomBtn;
+    let watchAdBtn, adBtnText, adUsedNotice, adTimerText, adProgressBar, adCompleteBtn;
+    let controlsPanel, usernameInput, playerDisplayName;
+    let scoreText, levelText, livesContainer, finalScoreText, finalLevelText, bestScoreText, leaderboardList;
+    let levelUpOverlay, levelUpTitle, levelUpSubtitle;
+    let recordToast, recordToastInner, recordToastIcon, recordToastTitle, recordToastSubtitle;
+
+    /* =========================================================
+       💾 CLOUD SAVE / LOAD
+       ========================================================= */
+    async function saveToCloud(key, data) {
+      if (!dataLoaded) return;
+      const payload = JSON.stringify(data);
+      if (ytgame && ytgame.game && ytgame.game.saveData) {
+        try { await ytgame.game.saveData(payload); } catch (e) {}
+      }
+      try { localStorage.setItem(key, payload); } catch (e) {}
+    }
+
+    async function loadFromCloud(key) {
+      if (ytgame && ytgame.game && ytgame.game.loadData) {
+        try {
+          const cloudData = await ytgame.game.loadData();
+          if (cloudData) { dataLoaded = true; return JSON.parse(cloudData); }
+        } catch (e) {}
+      }
+      try {
+        const local = localStorage.getItem(key);
+        if (local) { dataLoaded = true; return JSON.parse(local); }
+      } catch (e) {}
+      dataLoaded = true;
+      return null;
+    }
+
+    /* =========================================================
+       LEADERBOARD
+       ========================================================= */
+    async function loadLeaderboard() {
+      const saved = await loadFromCloud('colordrop_leaderboard_v2');
+      if (saved && Array.isArray(saved)) {
+        leaderboardData = saved;
+      } else {
+        leaderboardData = [
+          { name: 'Efe (YT)', score: 320 },
+          { name: 'Zeynep', score: 240 },
+          { name: 'Oyuncu', score: 150 }
+        ];
+      }
+      if (leaderboardData.length > 0) highScore = leaderboardData[0].score || 0;
+      renderLeaderboardUI();
+    }
+
+    async function loadPersonalBest() {
+      try {
+        const saved = await loadFromCloud('colordrop_personal_best');
+        if (saved && typeof saved.best === 'number') playerBestScore = saved.best;
+      } catch (e) {}
+    }
+
+    async function savePersonalBest(sc) {
+      playerBestScore = sc;
+      await saveToCloud('colordrop_personal_best', { best: sc });
+    }
+
+    function saveScoreToLeaderboard(name, sc) {
+      leaderboardData.push({ name: name || 'Oyuncu', score: sc, date: new Date().toLocaleDateString('tr-TR') });
+      leaderboardData.sort((a, b) => b.score - a.score);
+      leaderboardData = leaderboardData.slice(0, 7);
+      saveToCloud('colordrop_leaderboard_v2', leaderboardData);
+      renderLeaderboardUI();
+      if (ytgame && ytgame.engagement && ytgame.engagement.sendScore) {
+        try { ytgame.engagement.sendScore({ value: sc }); } catch (e) {}
+      }
+    }
+
+    function renderLeaderboardUI() {
+      if (!leaderboardList) return;
+      leaderboardList.innerHTML = '';
+      if (leaderboardData.length === 0) {
+        leaderboardList.innerHTML = `<div class="text-xs text-slate-500 py-4">Henüz kayıtlı skor bulunmuyor.</div>`;
+        return;
+      }
+      leaderboardData.forEach((entry, idx) => {
+        const item = document.createElement('div');
+        let rankColor = 'text-slate-400 bg-slate-800/50', medal = `#${idx + 1}`;
+        if (idx === 0) { rankColor = 'text-amber-300 bg-amber-500/10 border-amber-500/30'; medal = '🥇'; }
+        else if (idx === 1) { rankColor = 'text-slate-200 bg-slate-400/10 border-slate-400/30'; medal = '🥈'; }
+        else if (idx === 2) { rankColor = 'text-amber-600 bg-amber-700/10 border-amber-700/30'; medal = '🥉'; }
+        item.className = `flex items-center justify-between p-2.5 rounded-xl border text-xs font-bold ${rankColor}`;
+        item.innerHTML = `<div class="flex items-center gap-2 max-w-[150px] truncate"><span class="text-sm">${medal}</span><span class="truncate">${entry.name}</span></div><span class="text-indigo-400 text-sm font-black">${entry.score} p</span>`;
+        leaderboardList.appendChild(item);
+      });
+    }
+
+    /* =========================================================
+       🏆 REKOR
+       ========================================================= */
+    function checkRecordNotifications() {
+      if (!personalRecordShown && playerBestScore > 0 && score > playerBestScore) {
+        personalRecordShown = true;
+        showRecordToast('personal');
+      }
+      if (!allTimeRecordShown && highScore > 0 && score > highScore) {
+        allTimeRecordShown = true;
+        personalRecordShown = true;
+        showRecordToast('alltime');
+      }
+    }
+
+    function showRecordToast(type) {
+      if (!recordToast || !recordToastInner) return;
+      sfx.playRecord();
+      if (type === 'alltime') {
+        recordToastInner.className = 'record-shine flex items-center gap-3 px-5 py-3 rounded-2xl bg-gradient-to-r from-amber-500/95 via-yellow-400/95 to-amber-500/95 border-2 border-amber-200 shadow-2xl backdrop-blur-sm';
+        if (recordToastIcon) recordToastIcon.innerText = '🏆';
+        if (recordToastTitle) { recordToastTitle.innerText = t('recordAllTime'); recordToastTitle.className = 'text-sm font-black text-amber-950 leading-tight'; }
+        if (recordToastSubtitle) { recordToastSubtitle.innerText = t('recordAllTimeSub'); recordToastSubtitle.className = 'text-[11px] font-bold text-amber-900/80 leading-tight'; }
+      } else {
+        recordToastInner.className = 'record-shine flex items-center gap-3 px-5 py-3 rounded-2xl bg-gradient-to-r from-indigo-500/95 via-purple-400/95 to-indigo-500/95 border-2 border-indigo-200 shadow-2xl backdrop-blur-sm';
+        if (recordToastIcon) recordToastIcon.innerText = '⚡';
+        if (recordToastTitle) { recordToastTitle.innerText = t('recordPersonal'); recordToastTitle.className = 'text-sm font-black text-indigo-950 leading-tight'; }
+        if (recordToastSubtitle) { recordToastSubtitle.innerText = t('recordPersonalSub'); recordToastSubtitle.className = 'text-[11px] font-bold text-indigo-900/80 leading-tight'; }
+      }
+      recordToast.classList.remove('hidden');
+      recordToastInner.classList.remove('record-toast');
+      void recordToastInner.offsetWidth;
+      recordToastInner.classList.add('record-toast');
+      setTimeout(() => { recordToast.classList.add('hidden'); recordToastInner.classList.remove('record-toast'); }, 3000);
+    }
+
+    /* =========================================================
+       📺 REKLAM
+       ========================================================= */
+    async function watchAdForExtraLife() {
+      if (adUsedThisSession) return;
+      if (ytgame && ytgame.ads && ytgame.ads.requestRewardedAd) {
+        try {
+          const rewardEarned = await ytgame.ads.requestRewardedAd('extra-life-reward');
+          if (rewardEarned) applyAdReward();
+          return;
+        } catch (e) { console.warn('SDK reklam hatası:', e); }
+      }
+      showSimulatedAdModal(() => applyAdReward());
+    }
+
+    function showSimulatedAdModal(onComplete) {
+      if (!adOverlay) { if (onComplete) onComplete(); return; }
+      adOverlay.classList.remove('hidden');
+      let timeLeft = 5;
+      adTimerText.innerText = `${timeLeft}s`;
+      adProgressBar.style.width = '0%';
+      adCompleteBtn.disabled = true;
+      adCompleteBtn.className = 'w-full max-w-xs py-3 px-6 rounded-xl font-black text-xs text-slate-400 bg-slate-800 opacity-60 cursor-not-allowed';
+      adCompleteBtn.innerText = 'REKLAM BEKLENİYOR...';
+      const interval = setInterval(() => {
+        timeLeft--;
+        adTimerText.innerText = `${timeLeft}s`;
+        adProgressBar.style.width = `${((5 - timeLeft) / 5) * 100}%`;
+        if (timeLeft <= 0) {
+          clearInterval(interval);
+          adCompleteBtn.disabled = false;
+          adCompleteBtn.className = 'w-full max-w-xs py-3 px-6 rounded-xl font-black text-xs text-amber-900 bg-amber-400 hover:bg-amber-300 cursor-pointer shadow-lg animate-bounce';
+          adCompleteBtn.innerText = 'ÖDÜLÜ AL (+1 CAN)';
+        }
+      }, 1000);
+      adCompleteBtn.onclick = () => { adOverlay.classList.add('hidden'); if (onComplete) onComplete(); };
+    }
+
+    function applyAdReward() {
+      sfx.playReward();
+      adUsedThisSession = true;
+      lives = Math.min(3, lives + 1);
+      levelPopsCount = 0;
+      balls = [];
+      particles = [];
+      updateHUD();
+      if (watchAdBtn) {
+        watchAdBtn.disabled = true;
+        watchAdBtn.classList.add('opacity-50', 'grayscale', 'cursor-not-allowed');
+      }
+      if (adBtnText) adBtnText.innerText = 'REKLAM HAKKI KULLANILDI';
+      if (adUsedNotice) adUsedNotice.classList.remove('hidden');
+      if (gameOverScreen) gameOverScreen.classList.add('hidden');
+      
+      // 🛑 Kontrolleri geri aç
+      if (controlsPanel) {
+        controlsPanel.classList.remove('controls-disabled');
+      }
+      
+      gameState = 'PLAYING';
+      renderColorButtons();
+      spawnConfetti();
+    }
+
+    /* =========================================================
+       INIT
+       ========================================================= */
+    window.addEventListener('load', async () => {
+      try {
+        gameContainer = document.getElementById('game-container');
+        startScreen = document.getElementById('start-screen');
+        gameOverScreen = document.getElementById('gameover-screen');
+        leaderboardModal = document.getElementById('leaderboard-modal');
+        adOverlay = document.getElementById('ad-overlay');
+        startBtn = document.getElementById('start-btn');
+        restartBtn = document.getElementById('restart-btn');
+        openLeaderboardBtn = document.getElementById('open-leaderboard-btn');
+        gameOverLeaderboardBtn = document.getElementById('gameover-leaderboard-btn');
+        closeLeaderboardBtn = document.getElementById('close-leaderboard-btn');
+        closeLeaderboardBottomBtn = document.getElementById('close-leaderboard-bottom-btn');
+        watchAdBtn = document.getElementById('watch-ad-btn');
+        adBtnText = document.getElementById('ad-btn-text');
+        adUsedNotice = document.getElementById('ad-used-notice');
+        adTimerText = document.getElementById('ad-timer');
+        adProgressBar = document.getElementById('ad-progress');
+        adCompleteBtn = document.getElementById('ad-complete-btn');
+        controlsPanel = document.getElementById('controls-panel');
+        usernameInput = document.getElementById('username-input');
+        playerDisplayName = document.getElementById('player-display-name');
+        scoreText = document.getElementById('score-text');
+        levelText = document.getElementById('level-text');
+        livesContainer = document.getElementById('lives-container');
+        finalScoreText = document.getElementById('final-score');
+        finalLevelText = document.getElementById('final-level');
+        bestScoreText = document.getElementById('best-score');
+        leaderboardList = document.getElementById('leaderboard-list');
+        levelUpOverlay = document.getElementById('level-up-overlay');
+        levelUpTitle = document.getElementById('level-up-title');
+        levelUpSubtitle = document.getElementById('level-up-subtitle');
+        recordToast = document.getElementById('record-toast');
+        recordToastInner = document.getElementById('record-toast-inner');
+        recordToastIcon = document.getElementById('record-toast-icon');
+        recordToastTitle = document.getElementById('record-toast-title');
+        recordToastSubtitle = document.getElementById('record-toast-subtitle');
+
+        canvas = document.getElementById('gameCanvas');
+        ctx = canvas.getContext('2d');
+
+        if (ytgame && ytgame.system && ytgame.system.getLanguage) {
+          try {
+            const lang = await ytgame.system.getLanguage();
+            if (lang && (lang === 'tr' || lang === 'en')) currentLang = lang;
+          } catch (e) {}
+        }
+
+        setLanguage(currentLang);
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        await loadLeaderboard();
+        await loadPersonalBest();
+        try {
+          const userData = await loadFromCloud('colordrop_user');
+          if (userData && userData.name) {
+            playerName = userData.name;
+            if (usernameInput) usernameInput.value = playerName;
+            if (playerDisplayName) playerDisplayName.innerText = playerName;
+          }
+        } catch (e) {}
+
+        if (usernameInput) {
+          usernameInput.addEventListener('input', (e) => {
+            playerName = e.target.value.trim() || 'Oyuncu';
+            if (playerDisplayName) playerDisplayName.innerText = playerName;
+          });
+          usernameInput.addEventListener('blur', () => {
+            saveToCloud('colordrop_user', { name: playerName });
+          });
+        }
+
+        if (startBtn) {
+          startBtn.addEventListener('click', () => {
+            sfx.init();
+            if (playerName) saveToCloud('colordrop_user', { name: playerName });
+            startGame();
+          });
+        }
+        if (restartBtn) {
+          restartBtn.addEventListener('click', () => { sfx.init(); startGame(); });
+        }
+        if (watchAdBtn) {
+          watchAdBtn.addEventListener('click', () => watchAdForExtraLife());
+        }
+        if (openLeaderboardBtn) openLeaderboardBtn.addEventListener('click', () => leaderboardModal.classList.remove('hidden'));
+        if (gameOverLeaderboardBtn) gameOverLeaderboardBtn.addEventListener('click', () => leaderboardModal.classList.remove('hidden'));
+        if (closeLeaderboardBtn) closeLeaderboardBtn.addEventListener('click', () => leaderboardModal.classList.add('hidden'));
+        if (closeLeaderboardBottomBtn) closeLeaderboardBottomBtn.addEventListener('click', () => leaderboardModal.classList.add('hidden'));
+
+        window.addEventListener('keydown', handleKeyPress);
+
+        updateSpeedAndColorRules();
+        updateHUD();
+
+        if (ytgame && ytgame.system) {
+          if (ytgame.system.onPause) ytgame.system.onPause(() => { if (gameState === 'PLAYING') gameState = 'PAUSED'; });
+          if (ytgame.system.onResume) ytgame.system.onResume(() => { if (gameState === 'PAUSED') gameState = 'PLAYING'; });
+          if (ytgame.system.onAudioEnabledChange) {
+            ytgame.system.onAudioEnabledChange((enabled) => {
+              if (!enabled && sfx.ctx) sfx.ctx.suspend();
+              else if (enabled && sfx.ctx) sfx.ctx.resume();
+            });
+          }
+        }
+
+        if (!animationFrameId) animationFrameId = requestAnimationFrame(gameLoop);
+      } catch (e) {
+        console.error('❌ Init hatası:', e);
+        if (ytgame && ytgame.health && ytgame.health.logError) {
+          try { ytgame.health.logError('init-failed'); } catch (err) {}
+        }
+      }
+    });
+
+    /* =========================================================
+       CANVAS RESIZE
+       ========================================================= */
+    function resizeCanvas() {
+      if (!canvas || !gameContainer) return;
+      const dpr = window.devicePixelRatio || 1;
+      const cssW = gameContainer.clientWidth;
+      const cssH = gameContainer.clientHeight;
+      logicalWidth = cssW; logicalHeight = cssH;
+      canvas.width = Math.round(cssW * dpr);
+      canvas.height = Math.round(cssH * dpr);
+      canvas.style.width = cssW + 'px';
+      canvas.style.height = cssH + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      dangerLineY = logicalHeight - 90;
+      if (gameState === 'PLAYING' && currentConfig) renderColorButtons();
+    }
+
+    /* =========================================================
+       GAME FLOW
+       ========================================================= */
+    function startGame() {
+      try {
+        score = 0; lives = 3; mainLevel = 1; subLevel = 1;
+        levelPopsCount = 0; adUsedThisSession = false;
+        allTimeRecordShown = false; personalRecordShown = false;
+        balls = []; particles = []; confetti = []; spawnTimer = 0;
+
+        if (watchAdBtn) {
+          watchAdBtn.disabled = false;
+          watchAdBtn.classList.remove('opacity-50', 'grayscale', 'cursor-not-allowed');
+        }
+        if (adBtnText) adBtnText.innerText = t('adBtn');
+        if (adUsedNotice) adUsedNotice.classList.add('hidden');
+
+        // 🛑 Kontrolleri geri aç
+        if (controlsPanel) {
+          controlsPanel.classList.remove('controls-disabled');
+        }
+
+        updateSpeedAndColorRules();
+        updateHUD();
+
+        if (startScreen) startScreen.classList.add('hidden');
+        if (gameOverScreen) gameOverScreen.classList.add('hidden');
+        if (leaderboardModal) leaderboardModal.classList.add('hidden');
+
+        gameState = 'PLAYING';
+
+        if (ytgame && ytgame.game && ytgame.game.gameReady) {
+          try { ytgame.game.gameReady(); } catch (e) {}
+        }
+      } catch (e) { console.error('❌ startGame hatası:', e); }
+    }
+
+    function updateHUD() {
+      if (scoreText) scoreText.innerText = score;
+      if (levelText) levelText.innerText = `${mainLevel}.${subLevel}`;
+      let heartsHtml = '';
+      for (let i = 0; i < lives; i++) heartsHtml += `<span class="text-rose-500 text-sm">❤️</span>`;
+      if (livesContainer) livesContainer.innerHTML = heartsHtml;
+    }
+
+    function advanceLevel() {
+      subLevel++;
+      if (subLevel > 3) { subLevel = 1; mainLevel++; }
+      levelPopsCount = 0;
+      const prevColors = currentConfig.colorCount;
+      updateSpeedAndColorRules();
+      sfx.playLevelUp();
+      const hasNewColor = currentConfig.colorCount > prevColors;
+      showLevelUpBanner(mainLevel, subLevel, hasNewColor);
+      updateHUD();
+      spawnConfetti();
+      saveToCloud('colordrop_progress', { level: `${mainLevel}.${subLevel}`, score: score });
+    }
+
+    function showLevelUpBanner(mLvl, sLvl, isNewColor) {
+      if (!levelUpOverlay) return;
+      if (levelUpTitle) levelUpTitle.innerText = `${t('level')} ${mLvl}.${sLvl}`;
+      if (levelUpSubtitle) {
+        if (currentConfig && currentConfig.isEndless) {
+          levelUpSubtitle.innerText = currentLang === 'tr' ? '∞ SONSUZ MOD! Hız Sabit' : '∞ ENDLESS MODE! Speed Locked';
+        } else if (isNewColor) {
+          levelUpSubtitle.innerText = currentLang === 'tr' ? 'YENİ RENK! HIZ BAŞA DÖNDÜ' : 'NEW COLOR! SPEED RESET';
+        } else {
+          levelUpSubtitle.innerText = currentLang === 'tr' ? 'Hız Bir Tık Arttı!' : 'Speed Increased!';
+        }
+      }
+      levelUpOverlay.classList.remove('hidden');
+      setTimeout(() => levelUpOverlay.classList.add('hidden'), 1000);
+    }
+
+    /* =========================================================
+       BALL SPAWN
+       ========================================================= */
+    function spawnBall() {
+      if (!currentConfig) return;
+      const radius = 22;
+      const colorObj = activeColors[Math.floor(Math.random() * activeColors.length)];
+      const laneWidth = logicalWidth / (currentConfig.colorCount + 1);
+      const laneIndex = Math.floor(Math.random() * currentConfig.colorCount) + 1;
+      const x = laneIndex * laneWidth;
+      balls.push({
+        x: x, y: -radius, radius: radius,
+        colorId: colorObj.id, hex: colorObj.hex, glow: colorObj.glow,
+        speed: (2.0 * currentConfig.speedMultiplier) + (Math.random() * 0.15)
+      });
+    }
+
+    /* =========================================================
+       MATCH LOGIC
+       ========================================================= */
+    function processColorMatch(selectedColorId) {
+      // 🛑 Çift güvenlik
+      if (gameState !== 'PLAYING') return;
+      
+      if (balls.length === 0) { triggerMissPenalty(); return; }
+      let lowestIndex = -1, maxY = -Infinity;
+      for (let i = 0; i < balls.length; i++) {
+        if (balls[i].y > maxY) { maxY = balls[i].y; lowestIndex = i; }
+      }
+      if (lowestIndex !== -1) {
+        const targetBall = balls[lowestIndex];
+        if (targetBall.colorId === selectedColorId) {
+          createExplosion(targetBall.x, targetBall.y, targetBall.hex);
+          balls.splice(lowestIndex, 1);
+          sfx.playPop();
+          score += 10; levelPopsCount++;
+          updateHUD();
+          checkRecordNotifications();
+          if (levelPopsCount >= currentConfig.targetPops) advanceLevel();
+        } else { triggerMissPenalty(); }
+      }
+    }
+
+    function triggerMissPenalty() {
+      // 🛑 Game over ise tekrar işlem yapma
+      if (gameState !== 'PLAYING') return;
+      
+      sfx.playError();
+      if (gameContainer) {
+        gameContainer.classList.remove('animate-shake');
+        void gameContainer.offsetWidth;
+        gameContainer.classList.add('animate-shake');
+        setTimeout(() => gameContainer.classList.remove('animate-shake'), 250);
+      }
+      lives--;
+      updateHUD();
+      if (lives <= 0) triggerGameOver();
+    }
+
+    function handleKeyPress(e) {
+      if (gameState !== 'PLAYING') return;
+      const key = e.key;
+      const matchedColor = activeColors.find(c => c.key === key);
+      if (matchedColor) processColorMatch(matchedColor.id);
+    }
+
+    async function triggerGameOver() {
+      gameState = 'GAMEOVER';
+      sfx.playGameOver();
+      
+      // 🛑 KONTROLLERİ TAMAMEN DEVRE DIŞI BIRAK (asıl fix!)
+      if (controlsPanel) {
+        controlsPanel.classList.add('controls-disabled');
+      }
+      
+      // 🛑 Focus'u temizle
+      if (document.activeElement && document.activeElement.blur) {
+        document.activeElement.blur();
+      }
+      
+      if (score > highScore) highScore = score;
+      if (finalScoreText) finalScoreText.innerText = score;
+      if (finalLevelText) finalLevelText.innerText = `${mainLevel}.${subLevel}`;
+      if (bestScoreText) bestScoreText.innerText = highScore;
+      
+      if (adUsedThisSession && watchAdBtn) {
+        watchAdBtn.disabled = true;
+        watchAdBtn.classList.add('opacity-50', 'grayscale', 'cursor-not-allowed');
+        if (adBtnText) adBtnText.innerText = 'REKLAM HAKKI KULLANILDI';
+        if (adUsedNotice) adUsedNotice.classList.remove('hidden');
+      }
+      
+      if (score > playerBestScore) await savePersonalBest(score);
+      saveScoreToLeaderboard(playerName, score);
+      if (gameOverScreen) gameOverScreen.classList.remove('hidden');
+    }
+
+    /* =========================================================
+       PARTICLES & CONFETTI
+       ========================================================= */
+    function createExplosion(x, y, color) {
+      const particleCount = 18;
+      for (let i = 0; i < particleCount; i++) {
+        const angle = (Math.PI * 2 / particleCount) * i + (Math.random() * 0.5);
+        const speed = Math.random() * 6 + 2;
+        particles.push({
+          x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+          radius: Math.random() * 4 + 2, color, alpha: 1,
+          decay: Math.random() * 0.03 + 0.02
+        });
+      }
+    }
+
+    function spawnConfetti() {
+      const colors = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b'];
+      for (let i = 0; i < 35; i++) {
+        confetti.push({
+          x: Math.random() * logicalWidth, y: -10,
+          vx: (Math.random() - 0.5) * 4, vy: Math.random() * 4 + 2,
+          size: Math.random() * 6 + 4, color: colors[Math.floor(Math.random() * colors.length)],
+          rotation: Math.random() * 360, rotSpeed: (Math.random() - 0.5) * 10
+        });
+      }
+    }
+
+    /* =========================================================
+       UPDATE
+       ========================================================= */
+    function update() {
+      if (gameState !== 'PLAYING' || !currentConfig) return;
+      spawnTimer++;
+      if (spawnTimer >= currentConfig.spawnRateFrames) { spawnBall(); spawnTimer = 0; }
+      for (let i = balls.length - 1; i >= 0; i--) {
+        const ball = balls[i];
+        ball.y += ball.speed;
+        if (ball.y + ball.radius >= dangerLineY) {
+          balls.splice(i, 1);
+          triggerMissPenalty();
+          if (gameState !== 'PLAYING') return;
+        }
+      }
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.alpha -= p.decay;
+        if (p.alpha <= 0) particles.splice(i, 1);
+      }
+      for (let i = confetti.length - 1; i >= 0; i--) {
+        const c = confetti[i];
+        c.x += c.vx; c.y += c.vy; c.rotation += c.rotSpeed;
+        if (c.y > logicalHeight + 20) confetti.splice(i, 1);
+      }
+    }
+
+    /* =========================================================
+       BALL SPRITE CACHE
+       ========================================================= */
+    function getBallSprite(colorObj, radius) {
+      const key = colorObj.id + '_' + radius;
+      if (ballCache[key]) return ballCache[key];
+      const size = radius * 4;
+      const c = document.createElement('canvas');
+      c.width = c.height = size;
+      const cctx = c.getContext('2d');
+      cctx.shadowColor = colorObj.glow;
+      cctx.shadowBlur = 18;
+      cctx.beginPath();
+      cctx.arc(size / 2, size / 2, radius, 0, Math.PI * 2);
+      cctx.fillStyle = colorObj.hex;
+      cctx.fill();
+      cctx.shadowBlur = 0;
+      cctx.beginPath();
+      cctx.arc(size / 2 - radius * 0.3, size / 2 - radius * 0.3, radius * 0.35, 0, Math.PI * 2);
+      cctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+      cctx.fill();
+      ballCache[key] = c;
+      return c;
+    }
+
+    /* =========================================================
+       RENDER
+       ========================================================= */
+    function render() {
+      if (!ctx || !canvas) return;
+      ctx.fillStyle = '#090d16';
+      ctx.fillRect(0, 0, logicalWidth, logicalHeight);
+      if (currentConfig && currentConfig.colorCount > 0) {
+        const laneWidth = logicalWidth / (currentConfig.colorCount + 1);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+        ctx.lineWidth = 2;
+        for (let i = 1; i <= currentConfig.colorCount; i++) {
+          ctx.beginPath();
+          ctx.moveTo(i * laneWidth, 0);
+          ctx.lineTo(i * laneWidth, logicalHeight);
+          ctx.stroke();
+        }
+      }
+      ctx.strokeStyle = 'rgba(244, 63, 94, 0.5)';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.moveTo(0, dangerLineY);
+      ctx.lineTo(logicalWidth, dangerLineY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const dangerGradient = ctx.createLinearGradient(0, dangerLineY, 0, logicalHeight);
+      dangerGradient.addColorStop(0, 'rgba(244, 63, 94, 0.05)');
+      dangerGradient.addColorStop(1, 'rgba(244, 63, 94, 0.28)');
+      ctx.fillStyle = dangerGradient;
+      ctx.fillRect(0, dangerLineY, logicalWidth, logicalHeight - dangerLineY);
+      balls.forEach((ball) => {
+        const sprite = getBallSprite({ id: ball.colorId, hex: ball.hex, glow: ball.glow }, ball.radius);
+        ctx.drawImage(sprite, ball.x - ball.radius * 2, ball.y - ball.radius * 2, ball.radius * 4, ball.radius * 4);
+      });
+      particles.forEach((p) => {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, p.alpha);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.fill();
+        ctx.restore();
+      });
+      confetti.forEach((c) => {
+        ctx.save();
+        ctx.translate(c.x, c.y);
+        ctx.rotate((c.rotation * Math.PI) / 180);
+        ctx.fillStyle = c.color;
+        ctx.fillRect(-c.size / 2, -c.size / 2, c.size, c.size);
+        ctx.restore();
+      });
+    }
+
+    /* =========================================================
+       GAME LOOP
+       ========================================================= */
+    function gameLoop() {
+      update();
+      render();
+      if (!firstFrameSent && ytgame && ytgame.game && ytgame.game.firstFrameReady) {
+        try {
+          ytgame.game.firstFrameReady();
+          firstFrameSent = true;
+        } catch (e) {}
+      }
+      animationFrameId = requestAnimationFrame(gameLoop);
+    }
+  </script>
+</body>
+</html>
