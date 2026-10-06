@@ -310,7 +310,7 @@
     ];
 
     /* =========================================================
-       ⚡ HIZ & SEVİYE
+       ⚡ HIZ & SEVİYE — ⚡ HIZLANDIRILDI
        ========================================================= */
     function getTargetBallsForStage(main, sub) {
       if (main === 1 && sub === 1) return 20;
@@ -322,15 +322,23 @@
       let activeColorCount = (mLvl === 1) ? 2 : (mLvl === 2) ? 3 : 4;
       const isEndlessMode = (mLvl > 4) || (mLvl === 4 && sLvl >= 3);
       let speedMultiplier, spawnInterval;
+      
       if (isEndlessMode) {
-        const baseSpeed = 0.28, subSpeedBonusMax = 2 * 0.10, mainBonusMax = 3 * 0.03;
+        // ⚡ Hızlandırılmış sonsuz mod
+        const baseSpeed = 0.55;
+        const subSpeedBonusMax = 2 * 0.15;   // 4.3 = 3. alt seviye
+        const mainBonusMax = 3 * 0.05;       // 4. ana seviye
         speedMultiplier = baseSpeed + subSpeedBonusMax + mainBonusMax;
-        spawnInterval = Math.max(40, 130 - (subSpeedBonusMax * 80));
+        spawnInterval = Math.max(35, 110 - (subSpeedBonusMax * 70));
       } else {
-        const baseSpeed = 0.28, subSpeedBonus = (sLvl - 1) * 0.10, mainBonus = (mLvl - 1) * 0.03;
+        // ⚡ Hızlandırılmış normal mod
+        const baseSpeed = 0.55;
+        const subSpeedBonus = (sLvl - 1) * 0.15;
+        const mainBonus = (mLvl - 1) * 0.05;
         speedMultiplier = baseSpeed + subSpeedBonus + mainBonus;
-        spawnInterval = Math.max(40, 130 - (subSpeedBonus * 80));
+        spawnInterval = Math.max(35, 110 - (subSpeedBonus * 70));
       }
+      
       currentConfig = {
         colorCount: activeColorCount, speedMultiplier: speedMultiplier,
         spawnRateFrames: Math.round(spawnInterval),
@@ -416,12 +424,13 @@
     let logicalWidth = 0, logicalHeight = 0, leaderboardData = [];
 
     /* =========================================================
-       ⏱️ DELTA TIME — Cihazdan bağımsız hız
+       ⏱️ DELTA TIME
        ========================================================= */
     let lastFrameTime = 0;
-    let deltaTime = 1;              // 1.0 = 60 FPS referans
+    let deltaTime = 1;
     const TARGET_FPS = 60;
-    const TARGET_FRAME_TIME = 1000 / TARGET_FPS;  // 16.67ms
+    const TARGET_FRAME_TIME = 1000 / TARGET_FPS;
+    const MAX_DELTA = 6;  // ✅ 3 → 6 (yavaş cihazlar için)
 
     /* =========================================================
        DOM
@@ -616,7 +625,6 @@
         controlsPanel.classList.remove('controls-disabled');
       }
       
-      // ✅ Delta time reset (uzun duraklamadan sonra zıplama olmasın)
       lastFrameTime = 0;
       deltaTime = 1;
       
@@ -728,7 +736,6 @@
           if (ytgame.system.onPause) ytgame.system.onPause(() => { if (gameState === 'PLAYING') gameState = 'PAUSED'; });
           if (ytgame.system.onResume) ytgame.system.onResume(() => { 
             if (gameState === 'PAUSED') {
-              // ✅ Resume sonrası delta reset (duraklamadan sonra zıplama olmasın)
               lastFrameTime = 0;
               deltaTime = 1;
               gameState = 'PLAYING';
@@ -742,7 +749,6 @@
           }
         }
 
-        // ✅ İlk frame zamanını sıfırla
         lastFrameTime = 0;
         deltaTime = 1;
         
@@ -783,7 +789,6 @@
         allTimeRecordShown = false; personalRecordShown = false;
         balls = []; particles = []; confetti = []; spawnTimer = 0;
 
-        // ✅ Delta time reset
         lastFrameTime = 0;
         deltaTime = 1;
 
@@ -852,7 +857,7 @@
     }
 
     /* =========================================================
-       BALL SPAWN
+       BALL SPAWN — ⚡ HIZLANDIRILDI
        ========================================================= */
     function spawnBall() {
       if (!currentConfig) return;
@@ -864,7 +869,8 @@
       balls.push({
         x: x, y: -radius, radius: radius,
         colorId: colorObj.id, hex: colorObj.hex, glow: colorObj.glow,
-        speed: (2.0 * currentConfig.speedMultiplier) + (Math.random() * 0.15)
+        // ⚡ 2.0 → 3.0 çarpan
+        speed: (3.0 * currentConfig.speedMultiplier) + (Math.random() * 0.15)
       });
     }
 
@@ -973,19 +979,17 @@
     }
 
     /* =========================================================
-       UPDATE — ⏱️ DELTA TIME İLE CİHAZDAN BAĞIMSIZ
+       UPDATE — ⏱️ DELTA TIME
        ========================================================= */
     function update() {
       if (gameState !== 'PLAYING' || !currentConfig) return;
       
-      // ✅ Spawn timer artık delta ile → top doğma sıklığı da tutarlı
       spawnTimer += deltaTime;
       if (spawnTimer >= currentConfig.spawnRateFrames) {
         spawnBall();
         spawnTimer = 0;
       }
       
-      // ✅ Toplar delta time ile hareket → her cihazda aynı hız
       for (let i = balls.length - 1; i >= 0; i--) {
         const ball = balls[i];
         ball.y += ball.speed * deltaTime;
@@ -997,7 +1001,6 @@
         }
       }
       
-      // ✅ Particles delta ile
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
         p.x += p.vx * deltaTime;
@@ -1006,7 +1009,6 @@
         if (p.alpha <= 0) particles.splice(i, 1);
       }
       
-      // ✅ Confetti delta ile
       for (let i = confetti.length - 1; i >= 0; i--) {
         const c = confetti[i];
         c.x += c.vx * deltaTime;
@@ -1096,25 +1098,27 @@
     }
 
     /* =========================================================
-       GAME LOOP — ⏱️ DELTA TIME HESABI
+       GAME LOOP — ⏱️ DELTA TIME (GELİŞMİŞ)
        ========================================================= */
     function gameLoop(currentTime) {
-      // ✅ Delta time hesapla (60 FPS = 1.0 referans)
-      if (!currentTime) currentTime = performance.now();
+      // ✅ Güvenli timestamp
+      const now = (typeof currentTime === 'number' && currentTime > 0)
+        ? currentTime
+        : performance.now();
       
       if (lastFrameTime === 0) {
-        lastFrameTime = currentTime;
+        lastFrameTime = now;
+        animationFrameId = requestAnimationFrame(gameLoop);
+        return;
       }
       
-      const rawDelta = currentTime - lastFrameTime;
-      lastFrameTime = currentTime;
+      const rawDelta = now - lastFrameTime;
+      lastFrameTime = now;
       
-      // 60 FPS'e normalize et (16.67ms = 1.0)
       deltaTime = rawDelta / TARGET_FRAME_TIME;
       
-      // ⚠️ Güvenlik: çok büyük/küçük delta'yı sınırla
-      // (Tab arka plana atılınca, telefon uygulamayı duraklatınca vs. zıplama olmasın)
-      if (deltaTime > 3) deltaTime = 3;
+      // ✅ Sınırlar gevşetildi (3 → 6)
+      if (deltaTime > MAX_DELTA) deltaTime = MAX_DELTA;
       if (deltaTime < 0.1) deltaTime = 0.1;
       
       update();
