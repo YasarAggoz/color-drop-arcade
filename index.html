@@ -312,9 +312,9 @@
       let speedMultiplier, spawnInterval;
       
       if (isEndlessMode) {
-        const baseSpeed = 0.90;
-        const subSpeedBonusMax = 2 * 0.18;
-        const mainBonusMax = 3 * 0.06;
+        const baseSpeed = 0.95;
+        const subSpeedBonusMax = 2 * 0.20;
+        const mainBonusMax = 3 * 0.07;
         speedMultiplier = baseSpeed + subSpeedBonusMax + mainBonusMax;
         spawnInterval = Math.max(12, 28 - (subSpeedBonusMax * 18));
       } else {
@@ -322,7 +322,7 @@
         const subSpeedBonus = (sLvl - 1) * 0.18;
         const mainBonus = (mLvl - 1) * 0.06;
         speedMultiplier = baseSpeed + subSpeedBonus + mainBonus;
-        spawnInterval = Math.max(18, 55 - (subSpeedBonus * 35));
+        spawnInterval = Math.max(15, 40 - (subSpeedBonus * 25));
       }
       
       currentConfig = {
