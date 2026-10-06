@@ -87,7 +87,6 @@
     }
     .record-shine { animation: recordShine 1s ease-in-out infinite; }
 
-    /* 🛑 Game over sırasında kontrolleri tamamen devre dışı bırak */
     .controls-disabled {
       pointer-events: none !important;
       opacity: 0.35;
@@ -343,14 +342,13 @@
     }
 
     /* =========================================================
-       🎨 RENK BUTONLARI — 🛑 FARE TIKLAMA SORUNU ÇÖZÜLDÜ
+       🎨 RENK BUTONLARI
        ========================================================= */
     function renderColorButtons() {
       if (!controlsPanel || !currentConfig) return;
       activeColors = ALL_COLORS.slice(0, currentConfig.colorCount);
       controlsPanel.innerHTML = '';
       
-      // 🛑 Global buton kilidi — aynı frame'de çift tetiklemeyi engeller
       let buttonLock = false;
 
       activeColors.forEach((colorObj) => {
@@ -365,21 +363,17 @@
           <span class="text-[9px] opacity-75 font-mono leading-none">[${colorObj.key}]</span>
         `;
 
-        // 🛑 ANA TETİKLEYİCİ — Tüm korumalar burada
         const trigger = (e) => {
           e.preventDefault();
           e.stopPropagation();
           if (e.stopImmediatePropagation) e.stopImmediatePropagation();
           
-          // 🛑 Focus'u anında kaldır (fare tıklaması sonrası focus kalmasın)
           if (document.activeElement && document.activeElement.blur) {
             document.activeElement.blur();
           }
           
-          // 🛑 Game over veya başka bir state'teyse işlem yapma
           if (gameState !== 'PLAYING') return;
           
-          // 🛑 Çift tetikleme koruması
           if (buttonLock) return;
           buttonLock = true;
           setTimeout(() => { buttonLock = false; }, 120);
@@ -387,25 +381,16 @@
           processColorMatch(colorObj.id);
         };
 
-        // 🛑 Sadece pointerdown kullan
         btn.addEventListener('pointerdown', trigger);
-        
-        // 🛑 Fare tıklamasında focus'u tamamen engelle (asıl fix!)
         btn.addEventListener('focus', (e) => { 
           if (e.target && e.target.blur) e.target.blur(); 
         });
-        btn.addEventListener('mousedown', (e) => {
-          e.preventDefault(); // Focus almayı engelle
-        });
-        
-        // 🛑 Click eventi zaten pointerdown ile işlendiği için engelle
+        btn.addEventListener('mousedown', (e) => e.preventDefault());
         btn.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
           if (e.stopImmediatePropagation) e.stopImmediatePropagation();
         });
-        
-        // 🛑 Uzun basma / sağ tıklama engelle
         btn.addEventListener('contextmenu', (e) => e.preventDefault());
         btn.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
         btn.addEventListener('touchend', (e) => e.preventDefault());
@@ -429,6 +414,14 @@
     let spawnTimer = 0, dangerLineY = 0, animationFrameId = null, firstFrameSent = false;
     const ballCache = {};
     let logicalWidth = 0, logicalHeight = 0, leaderboardData = [];
+
+    /* =========================================================
+       ⏱️ DELTA TIME — Cihazdan bağımsız hız
+       ========================================================= */
+    let lastFrameTime = 0;
+    let deltaTime = 1;              // 1.0 = 60 FPS referans
+    const TARGET_FPS = 60;
+    const TARGET_FRAME_TIME = 1000 / TARGET_FPS;  // 16.67ms
 
     /* =========================================================
        DOM
@@ -619,10 +612,13 @@
       if (adUsedNotice) adUsedNotice.classList.remove('hidden');
       if (gameOverScreen) gameOverScreen.classList.add('hidden');
       
-      // 🛑 Kontrolleri geri aç
       if (controlsPanel) {
         controlsPanel.classList.remove('controls-disabled');
       }
+      
+      // ✅ Delta time reset (uzun duraklamadan sonra zıplama olmasın)
+      lastFrameTime = 0;
+      deltaTime = 1;
       
       gameState = 'PLAYING';
       renderColorButtons();
@@ -730,7 +726,14 @@
 
         if (ytgame && ytgame.system) {
           if (ytgame.system.onPause) ytgame.system.onPause(() => { if (gameState === 'PLAYING') gameState = 'PAUSED'; });
-          if (ytgame.system.onResume) ytgame.system.onResume(() => { if (gameState === 'PAUSED') gameState = 'PLAYING'; });
+          if (ytgame.system.onResume) ytgame.system.onResume(() => { 
+            if (gameState === 'PAUSED') {
+              // ✅ Resume sonrası delta reset (duraklamadan sonra zıplama olmasın)
+              lastFrameTime = 0;
+              deltaTime = 1;
+              gameState = 'PLAYING';
+            }
+          });
           if (ytgame.system.onAudioEnabledChange) {
             ytgame.system.onAudioEnabledChange((enabled) => {
               if (!enabled && sfx.ctx) sfx.ctx.suspend();
@@ -739,6 +742,10 @@
           }
         }
 
+        // ✅ İlk frame zamanını sıfırla
+        lastFrameTime = 0;
+        deltaTime = 1;
+        
         if (!animationFrameId) animationFrameId = requestAnimationFrame(gameLoop);
       } catch (e) {
         console.error('❌ Init hatası:', e);
@@ -776,6 +783,10 @@
         allTimeRecordShown = false; personalRecordShown = false;
         balls = []; particles = []; confetti = []; spawnTimer = 0;
 
+        // ✅ Delta time reset
+        lastFrameTime = 0;
+        deltaTime = 1;
+
         if (watchAdBtn) {
           watchAdBtn.disabled = false;
           watchAdBtn.classList.remove('opacity-50', 'grayscale', 'cursor-not-allowed');
@@ -783,7 +794,6 @@
         if (adBtnText) adBtnText.innerText = t('adBtn');
         if (adUsedNotice) adUsedNotice.classList.add('hidden');
 
-        // 🛑 Kontrolleri geri aç
         if (controlsPanel) {
           controlsPanel.classList.remove('controls-disabled');
         }
@@ -862,7 +872,6 @@
        MATCH LOGIC
        ========================================================= */
     function processColorMatch(selectedColorId) {
-      // 🛑 Çift güvenlik
       if (gameState !== 'PLAYING') return;
       
       if (balls.length === 0) { triggerMissPenalty(); return; }
@@ -885,7 +894,6 @@
     }
 
     function triggerMissPenalty() {
-      // 🛑 Game over ise tekrar işlem yapma
       if (gameState !== 'PLAYING') return;
       
       sfx.playError();
@@ -911,12 +919,10 @@
       gameState = 'GAMEOVER';
       sfx.playGameOver();
       
-      // 🛑 KONTROLLERİ TAMAMEN DEVRE DIŞI BIRAK (asıl fix!)
       if (controlsPanel) {
         controlsPanel.classList.add('controls-disabled');
       }
       
-      // 🛑 Focus'u temizle
       if (document.activeElement && document.activeElement.blur) {
         document.activeElement.blur();
       }
@@ -967,29 +973,45 @@
     }
 
     /* =========================================================
-       UPDATE
+       UPDATE — ⏱️ DELTA TIME İLE CİHAZDAN BAĞIMSIZ
        ========================================================= */
     function update() {
       if (gameState !== 'PLAYING' || !currentConfig) return;
-      spawnTimer++;
-      if (spawnTimer >= currentConfig.spawnRateFrames) { spawnBall(); spawnTimer = 0; }
+      
+      // ✅ Spawn timer artık delta ile → top doğma sıklığı da tutarlı
+      spawnTimer += deltaTime;
+      if (spawnTimer >= currentConfig.spawnRateFrames) {
+        spawnBall();
+        spawnTimer = 0;
+      }
+      
+      // ✅ Toplar delta time ile hareket → her cihazda aynı hız
       for (let i = balls.length - 1; i >= 0; i--) {
         const ball = balls[i];
-        ball.y += ball.speed;
+        ball.y += ball.speed * deltaTime;
+        
         if (ball.y + ball.radius >= dangerLineY) {
           balls.splice(i, 1);
           triggerMissPenalty();
           if (gameState !== 'PLAYING') return;
         }
       }
+      
+      // ✅ Particles delta ile
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
-        p.x += p.vx; p.y += p.vy; p.alpha -= p.decay;
+        p.x += p.vx * deltaTime;
+        p.y += p.vy * deltaTime;
+        p.alpha -= p.decay * deltaTime;
         if (p.alpha <= 0) particles.splice(i, 1);
       }
+      
+      // ✅ Confetti delta ile
       for (let i = confetti.length - 1; i >= 0; i--) {
         const c = confetti[i];
-        c.x += c.vx; c.y += c.vy; c.rotation += c.rotSpeed;
+        c.x += c.vx * deltaTime;
+        c.y += c.vy * deltaTime;
+        c.rotation += c.rotSpeed * deltaTime;
         if (c.y > logicalHeight + 20) confetti.splice(i, 1);
       }
     }
@@ -1074,17 +1096,37 @@
     }
 
     /* =========================================================
-       GAME LOOP
+       GAME LOOP — ⏱️ DELTA TIME HESABI
        ========================================================= */
-    function gameLoop() {
+    function gameLoop(currentTime) {
+      // ✅ Delta time hesapla (60 FPS = 1.0 referans)
+      if (!currentTime) currentTime = performance.now();
+      
+      if (lastFrameTime === 0) {
+        lastFrameTime = currentTime;
+      }
+      
+      const rawDelta = currentTime - lastFrameTime;
+      lastFrameTime = currentTime;
+      
+      // 60 FPS'e normalize et (16.67ms = 1.0)
+      deltaTime = rawDelta / TARGET_FRAME_TIME;
+      
+      // ⚠️ Güvenlik: çok büyük/küçük delta'yı sınırla
+      // (Tab arka plana atılınca, telefon uygulamayı duraklatınca vs. zıplama olmasın)
+      if (deltaTime > 3) deltaTime = 3;
+      if (deltaTime < 0.1) deltaTime = 0.1;
+      
       update();
       render();
+      
       if (!firstFrameSent && ytgame && ytgame.game && ytgame.game.firstFrameReady) {
         try {
           ytgame.game.firstFrameReady();
           firstFrameSent = true;
         } catch (e) {}
       }
+      
       animationFrameId = requestAnimationFrame(gameLoop);
     }
   </script>
