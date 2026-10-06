@@ -226,9 +226,6 @@
   </div>
 
   <script>
-    /* =========================================================
-       🌍 DİL
-       ========================================================= */
     let currentLang = 'tr';
     let dataLoaded = false;
 
@@ -278,9 +275,6 @@
       return (TRANSLATIONS[currentLang] && TRANSLATIONS[currentLang][key]) || key;
     }
 
-    /* =========================================================
-       🔊 SOUND FX
-       ========================================================= */
     class SoundFx {
       constructor() { this.ctx = null; }
       init() {
@@ -299,9 +293,6 @@
     }
     const sfx = new SoundFx();
 
-    /* =========================================================
-       🎨 RENKLER
-       ========================================================= */
     const ALL_COLORS = [
       { id: 'red', name: 'KIRMIZI', hex: '#ef4444', glow: 'rgba(239, 68, 68, 0.7)', key: '1' },
       { id: 'blue', name: 'MAVİ', hex: '#3b82f6', glow: 'rgba(59, 130, 246, 0.7)', key: '2' },
@@ -309,12 +300,9 @@
       { id: 'yellow', name: 'SARI', hex: '#f59e0b', glow: 'rgba(245, 158, 11, 0.7)', key: '4' }
     ];
 
-    /* =========================================================
-       ⚡ HIZ & SEVİYE — ⚡ HIZLANDIRILDI
-       ========================================================= */
     function getTargetBallsForStage(main, sub) {
-      if (main === 1 && sub === 1) return 20;
-      return 30;
+      if (main === 1 && sub === 1) return 30;
+      return 45;
     }
 
     function updateSpeedAndColorRules() {
@@ -324,19 +312,17 @@
       let speedMultiplier, spawnInterval;
       
       if (isEndlessMode) {
-        // ⚡ Hızlandırılmış sonsuz mod
-        const baseSpeed = 0.55;
-        const subSpeedBonusMax = 2 * 0.15;   // 4.3 = 3. alt seviye
-        const mainBonusMax = 3 * 0.05;       // 4. ana seviye
+        const baseSpeed = 0.90;
+        const subSpeedBonusMax = 2 * 0.18;
+        const mainBonusMax = 3 * 0.06;
         speedMultiplier = baseSpeed + subSpeedBonusMax + mainBonusMax;
-        spawnInterval = Math.max(35, 110 - (subSpeedBonusMax * 70));
+        spawnInterval = Math.max(12, 28 - (subSpeedBonusMax * 18));
       } else {
-        // ⚡ Hızlandırılmış normal mod
-        const baseSpeed = 0.55;
-        const subSpeedBonus = (sLvl - 1) * 0.15;
-        const mainBonus = (mLvl - 1) * 0.05;
+        const baseSpeed = 0.90;
+        const subSpeedBonus = (sLvl - 1) * 0.18;
+        const mainBonus = (mLvl - 1) * 0.06;
         speedMultiplier = baseSpeed + subSpeedBonus + mainBonus;
-        spawnInterval = Math.max(35, 110 - (subSpeedBonus * 70));
+        spawnInterval = Math.max(18, 55 - (subSpeedBonus * 35));
       }
       
       currentConfig = {
@@ -349,9 +335,6 @@
       if (badge) badge.classList.toggle('hidden', !isEndlessMode);
     }
 
-    /* =========================================================
-       🎨 RENK BUTONLARI
-       ========================================================= */
     function renderColorButtons() {
       if (!controlsPanel || !currentConfig) return;
       activeColors = ALL_COLORS.slice(0, currentConfig.colorCount);
@@ -407,9 +390,6 @@
       });
     }
 
-    /* =========================================================
-       STATE
-       ========================================================= */
     let canvas, ctx;
     let gameState = 'START';
     let mainLevel = 1, subLevel = 1;
@@ -423,18 +403,12 @@
     const ballCache = {};
     let logicalWidth = 0, logicalHeight = 0, leaderboardData = [];
 
-    /* =========================================================
-       ⏱️ DELTA TIME
-       ========================================================= */
     let lastFrameTime = 0;
     let deltaTime = 1;
     const TARGET_FPS = 60;
     const TARGET_FRAME_TIME = 1000 / TARGET_FPS;
-    const MAX_DELTA = 6;  // ✅ 3 → 6 (yavaş cihazlar için)
+    const MAX_DELTA = 6;
 
-    /* =========================================================
-       DOM
-       ========================================================= */
     let gameContainer, startScreen, gameOverScreen, leaderboardModal, adOverlay;
     let startBtn, restartBtn, openLeaderboardBtn, gameOverLeaderboardBtn;
     let closeLeaderboardBtn, closeLeaderboardBottomBtn;
@@ -444,9 +418,6 @@
     let levelUpOverlay, levelUpTitle, levelUpSubtitle;
     let recordToast, recordToastInner, recordToastIcon, recordToastTitle, recordToastSubtitle;
 
-    /* =========================================================
-       💾 CLOUD SAVE / LOAD
-       ========================================================= */
     async function saveToCloud(key, data) {
       if (!dataLoaded) return;
       const payload = JSON.stringify(data);
@@ -471,9 +442,6 @@
       return null;
     }
 
-    /* =========================================================
-       LEADERBOARD
-       ========================================================= */
     async function loadLeaderboard() {
       const saved = await loadFromCloud('colordrop_leaderboard_v2');
       if (saved && Array.isArray(saved)) {
@@ -531,9 +499,6 @@
       });
     }
 
-    /* =========================================================
-       🏆 REKOR
-       ========================================================= */
     function checkRecordNotifications() {
       if (!personalRecordShown && playerBestScore > 0 && score > playerBestScore) {
         personalRecordShown = true;
@@ -567,9 +532,6 @@
       setTimeout(() => { recordToast.classList.add('hidden'); recordToastInner.classList.remove('record-toast'); }, 3000);
     }
 
-    /* =========================================================
-       📺 REKLAM
-       ========================================================= */
     async function watchAdForExtraLife() {
       if (adUsedThisSession) return;
       if (ytgame && ytgame.ads && ytgame.ads.requestRewardedAd) {
@@ -633,9 +595,6 @@
       spawnConfetti();
     }
 
-    /* =========================================================
-       INIT
-       ========================================================= */
     window.addEventListener('load', async () => {
       try {
         gameContainer = document.getElementById('game-container');
@@ -754,16 +713,13 @@
         
         if (!animationFrameId) animationFrameId = requestAnimationFrame(gameLoop);
       } catch (e) {
-        console.error('❌ Init hatası:', e);
+        console.error('Init hatası:', e);
         if (ytgame && ytgame.health && ytgame.health.logError) {
           try { ytgame.health.logError('init-failed'); } catch (err) {}
         }
       }
     });
 
-    /* =========================================================
-       CANVAS RESIZE
-       ========================================================= */
     function resizeCanvas() {
       if (!canvas || !gameContainer) return;
       const dpr = window.devicePixelRatio || 1;
@@ -779,9 +735,6 @@
       if (gameState === 'PLAYING' && currentConfig) renderColorButtons();
     }
 
-    /* =========================================================
-       GAME FLOW
-       ========================================================= */
     function startGame() {
       try {
         score = 0; lives = 3; mainLevel = 1; subLevel = 1;
@@ -815,7 +768,7 @@
         if (ytgame && ytgame.game && ytgame.game.gameReady) {
           try { ytgame.game.gameReady(); } catch (e) {}
         }
-      } catch (e) { console.error('❌ startGame hatası:', e); }
+      } catch (e) { console.error('startGame hatası:', e); }
     }
 
     function updateHUD() {
@@ -856,9 +809,6 @@
       setTimeout(() => levelUpOverlay.classList.add('hidden'), 1000);
     }
 
-    /* =========================================================
-       BALL SPAWN — ⚡ HIZLANDIRILDI
-       ========================================================= */
     function spawnBall() {
       if (!currentConfig) return;
       const radius = 22;
@@ -869,14 +819,10 @@
       balls.push({
         x: x, y: -radius, radius: radius,
         colorId: colorObj.id, hex: colorObj.hex, glow: colorObj.glow,
-        // ⚡ 2.0 → 3.0 çarpan
-        speed: (3.0 * currentConfig.speedMultiplier) + (Math.random() * 0.15)
+        speed: (4.2 * currentConfig.speedMultiplier) + (Math.random() * 0.15)
       });
     }
 
-    /* =========================================================
-       MATCH LOGIC
-       ========================================================= */
     function processColorMatch(selectedColorId) {
       if (gameState !== 'PLAYING') return;
       
@@ -950,9 +896,6 @@
       if (gameOverScreen) gameOverScreen.classList.remove('hidden');
     }
 
-    /* =========================================================
-       PARTICLES & CONFETTI
-       ========================================================= */
     function createExplosion(x, y, color) {
       const particleCount = 18;
       for (let i = 0; i < particleCount; i++) {
@@ -978,9 +921,6 @@
       }
     }
 
-    /* =========================================================
-       UPDATE — ⏱️ DELTA TIME
-       ========================================================= */
     function update() {
       if (gameState !== 'PLAYING' || !currentConfig) return;
       
@@ -1018,9 +958,6 @@
       }
     }
 
-    /* =========================================================
-       BALL SPRITE CACHE
-       ========================================================= */
     function getBallSprite(colorObj, radius) {
       const key = colorObj.id + '_' + radius;
       if (ballCache[key]) return ballCache[key];
@@ -1043,9 +980,6 @@
       return c;
     }
 
-    /* =========================================================
-       RENDER
-       ========================================================= */
     function render() {
       if (!ctx || !canvas) return;
       ctx.fillStyle = '#090d16';
@@ -1097,11 +1031,7 @@
       });
     }
 
-    /* =========================================================
-       GAME LOOP — ⏱️ DELTA TIME (GELİŞMİŞ)
-       ========================================================= */
     function gameLoop(currentTime) {
-      // ✅ Güvenli timestamp
       const now = (typeof currentTime === 'number' && currentTime > 0)
         ? currentTime
         : performance.now();
@@ -1117,7 +1047,6 @@
       
       deltaTime = rawDelta / TARGET_FRAME_TIME;
       
-      // ✅ Sınırlar gevşetildi (3 → 6)
       if (deltaTime > MAX_DELTA) deltaTime = MAX_DELTA;
       if (deltaTime < 0.1) deltaTime = 0.1;
       
